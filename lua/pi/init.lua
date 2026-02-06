@@ -108,7 +108,7 @@ local function start_spinner(status_text)
       return
     end
     update_spinner(status_text)
-    state.spinner_timer = vim.defer_fn(tick, 300)
+    state.spinner_timer = vim.defer_fn(tick, 200)
   end
   tick()
 end
