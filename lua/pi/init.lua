@@ -1,10 +1,8 @@
 local M = {}
 
 M.config = {
-  model = "openrouter/free", -- Default to free tier
-  auto_close = true, -- Auto-close window when done
-  show_status = true, -- Show completion status before closing
-  close_delay = 1000, -- Delay before auto-close (ms), 0 to disable
+  provider = "openrouter",
+  model = "openrouter/free",
 }
 
 local loading_spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
@@ -29,6 +27,10 @@ end
 
 local function get_pi_cmd()
   local cmd = { "pi", "--mode", "rpc", "--no-session" }
+  if M.config.provider then
+    table.insert(cmd, "--provider")
+    table.insert(cmd, M.config.provider)
+  end
   if M.config.model then
     table.insert(cmd, "--model")
     table.insert(cmd, M.config.model)
@@ -65,31 +67,6 @@ local function create_output_window()
   vim.wo[win].wrap = true
   vim.wo[win].linebreak = true
 
-  -- Set up keybindings for the floating window
-  local opts = { buffer = buf, silent = true }
-  vim.keymap.set("n", "q", function()
-    M.stop()
-  end, opts)
-  vim.keymap.set("n", "<Esc>", function()
-    M.stop()
-  end, opts)
-  vim.keymap.set("n", "<C-c>", function()
-    M.stop()
-  end, opts)
-
-  -- Stop session when user switches to another window
-  vim.defer_fn(function()
-    local augroup = vim.api.nvim_create_augroup("pi_nvim_" .. buf, { clear = true })
-    vim.api.nvim_create_autocmd("WinEnter", {
-      group = augroup,
-      callback = function()
-        if state.job and vim.api.nvim_get_current_win() ~= win then
-          M.stop()
-        end
-      end,
-    })
-  end, 100)
-
   return buf, win
 end
 
@@ -114,7 +91,6 @@ local function update_spinner(status_text)
 
   local virt_text = { { spinner_char .. " " .. status_text, "Comment" } }
 
-  -- Clear old extmark and set new one at line 0
   if state.extmark_id then
     pcall(vim.api.nvim_buf_del_extmark, state.buf, state.ns_id, state.extmark_id)
   end
@@ -154,11 +130,6 @@ local function cleanup()
     vim.fn.jobstop(state.job)
     state.job = nil
   end
-  -- Clean up autocommand groups
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    local name = "pi_nvim_" .. buf
-    pcall(vim.api.nvim_del_augroup_by_name, name)
-  end
   close_window()
 end
 
@@ -181,65 +152,21 @@ local function handle_event(data)
     update_spinner("Running tool: " .. (event.toolName or "unknown"))
   elseif event_type == "agent_end" then
     stop_spinner()
-    state.job = nil
-
-    if M.config.show_status and state.buf and vim.api.nvim_buf_is_valid(state.buf) then
-      vim.api.nvim_buf_set_option(state.buf, "modifiable", true)
-      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "✓ Done! File updated." })
-      vim.api.nvim_buf_set_option(state.buf, "modifiable", false)
-    end
-
-    -- Reload the current buffer from disk
+    cleanup()
     vim.cmd("edit!")
-
-    if M.config.auto_close then
-      if M.config.close_delay > 0 then
-        vim.defer_fn(function()
-          close_window()
-        end, M.config.close_delay)
-      else
-        close_window()
-      end
-    else
-      -- Update title to show it's done
-      if state.win and vim.api.nvim_win_is_valid(state.win) then
-        vim.api.nvim_win_set_config(state.win, {
-          title = " pi (done - press q to close) ",
-          title_pos = "center",
-        })
-      end
-    end
-
-    vim.notify("pi finished - file reloaded", vim.log.levels.INFO)
+    vim.notify("pi finished", vim.log.levels.INFO)
   elseif event_type == "response" then
     if not event.success then
       stop_spinner()
-      local error_msg = event.error or "unknown error"
-
-      -- Show error in the floating window
-      if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
-        vim.api.nvim_buf_set_option(state.buf, "modifiable", true)
-        vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, { "✗ Error: " .. error_msg })
-        vim.api.nvim_buf_set_option(state.buf, "modifiable", false)
-
-        -- Update title to show error
-        if state.win and vim.api.nvim_win_is_valid(state.win) then
-          vim.api.nvim_win_set_config(state.win, {
-            title = " pi (error - press q to close) ",
-            title_pos = "center",
-          })
-        end
-      end
-
-      vim.notify("pi error: " .. error_msg, vim.log.levels.ERROR)
-      state.job = nil
+      cleanup()
+      vim.notify("pi error: " .. (event.error or "unknown"), vim.log.levels.ERROR)
     end
   end
 end
 
 function M.send(message, context)
   if state.job then
-    vim.notify("pi is already running. Use :PiStop to cancel.", vim.log.levels.WARN)
+    vim.notify("pi is already running, please wait", vim.log.levels.WARN)
     return
   end
 
@@ -248,19 +175,14 @@ function M.send(message, context)
     return
   end
 
-  -- Build the full prompt
   local full_prompt = message
   if context and context ~= "" then
     full_prompt = full_prompt .. "\n\nContext:\n" .. context
   end
 
-  -- Reset state
   state.spinner_idx = 1
-
-  -- Create output window
   state.buf, state.win = create_output_window()
 
-  -- Start pi RPC process
   local cmd = get_pi_cmd()
 
   state.job = vim.fn.jobstart(cmd, {
@@ -306,27 +228,12 @@ function M.send(message, context)
     return
   end
 
-  -- Send prompt command to stdin
   local prompt_cmd = vim.json.encode({
     type = "prompt",
     message = full_prompt,
   })
   vim.fn.chansend(state.job, prompt_cmd .. "\n")
   vim.fn.chanclose(state.job, "stdin")
-end
-
-function M.stop()
-  if not state.job then
-    vim.notify("No pi session running", vim.log.levels.INFO)
-    return
-  end
-
-  -- Send abort command
-  local abort_cmd = vim.json.encode({ type = "abort" })
-  vim.fn.chansend(state.job, abort_cmd .. "\n")
-
-  cleanup()
-  vim.notify("pi session stopped", vim.log.levels.INFO)
 end
 
 function M.get_buffer_context()
@@ -348,17 +255,14 @@ function M.get_visual_context()
   local bufnr = vim.api.nvim_get_current_buf()
   local filename = vim.api.nvim_buf_get_name(bufnr)
 
-  -- Get ALL file content
   local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local all_content = table.concat(all_lines, "\n")
 
-  -- Get visual selection range
   local start_pos = vim.fn.getpos("'<")
   local end_pos = vim.fn.getpos("'>")
   local start_line = start_pos[2]
   local end_line = end_pos[2]
 
-  -- Get selected lines
   local selected_lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
   local selection_content = table.concat(selected_lines, "\n")
 
@@ -388,7 +292,7 @@ end
 
 function M.prompt_with_buffer()
   if state.job then
-    vim.notify("pi is already running. Use :PiStop to cancel.", vim.log.levels.WARN)
+    vim.notify("pi is already running, please wait", vim.log.levels.WARN)
     return
   end
 
@@ -402,7 +306,7 @@ end
 
 function M.prompt_with_selection()
   if state.job then
-    vim.notify("pi is already running. Use :PiStop to cancel.", vim.log.levels.WARN)
+    vim.notify("pi is already running, please wait", vim.log.levels.WARN)
     return
   end
 

@@ -15,7 +15,3 @@ end, { desc = "Ask pi with current buffer as context" })
 vim.api.nvim_create_user_command("PiAskSelection", function()
   require("pi").prompt_with_selection()
 end, { range = true, desc = "Ask pi with visual selection as context" })
-
-vim.api.nvim_create_user_command("PiStop", function()
-  require("pi").stop()
-end, { desc = "Stop the current pi session" })

@@ -40,8 +40,28 @@ MiniDeps.add("pablopunk/pi.nvim")
 
 ```lua
 require("pi").setup({
-  model = "openrouter/free",    -- default model
+  provider = "openrouter",
+  model = "openrouter/free", -- default
 })
+```
+
+Use `pi --list-models` to see available models.
+
+**Examples:**
+
+This is basically the same as doing `pi --provider <provider> --model <model>`, so you can test it out on the cli to make sure it works.
+```lua
+-- OpenRouter kimi-k2.5
+{ provider = "openrouter", model = "moonshotai/kimi-k2.5" }
+
+-- OpenRouter haiku-4.5
+{ provider = "openrouter", model = "anthropic/claude-haiku-4.5" }
+
+-- Anthropic haiku-4-5
+{ provider = "anthropic", model = "claude-haiku-4-5" }
+
+-- OpenAI
+{ provider = "openai", model = "gpt-4.1-mini" }
 ```
 
 Run `pi --list-models` to see available options.
@@ -66,7 +86,6 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 |---------|------|-------------|
 | `:PiAsk` | Normal | Prompt for input, sends with full buffer as context |
 | `:PiAskSelection` | Visual | Prompt for input, sends with visual selection as context |
-| `:PiStop` | Normal | Stop the currently running pi session |
 
 
 ## License
