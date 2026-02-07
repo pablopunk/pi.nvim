@@ -1,6 +1,6 @@
 # pi.nvim
 
-A Neovim plugin for interacting with [pi](https://pi.dev) - the minimal terminal coding agent.
+A Neovim plugin for interacting with [pi](https://pi.dev) - the minimal cli agent.
 
 <p align="center">
 <a href="https://asciinema.org/a/k7XHTrbWKHp3dOAF?autoplay=1">
