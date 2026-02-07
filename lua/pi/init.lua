@@ -48,7 +48,7 @@ end
 local function ensure_file_backed_buffer(command_name)
   local bufnr = vim.api.nvim_get_current_buf()
   if not buffer_is_file_backed(bufnr) then
-    local err = string.format("%s requires a file-backed buffer", command_name)
+    local err = string.format("%s requires a file", command_name)
     vim.notify(err, vim.log.levels.ERROR)
     return nil
   end
@@ -85,10 +85,6 @@ local function format_prompt_label(bufnr, selection_range)
     label = string.format("ask pi (%s)", table.concat(components, ":"))
   else
     label = "ask pi"
-  end
-
-  if buffer_is_empty(bufnr) then
-    label = label .. " [buffer is empty]"
   end
 
   return label .. ": "
