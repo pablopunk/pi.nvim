@@ -49,6 +49,10 @@ local function get_pi_cmd()
     table.insert(cmd, "--system-prompt")
     table.insert(cmd, cfg.system_prompt)
   end
+  if cfg.append_system_prompt then
+    table.insert(cmd, "--append-system-prompt")
+    table.insert(cmd, cfg.append_system_prompt)
+  end
   return cmd
 end
 

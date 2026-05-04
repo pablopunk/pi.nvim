@@ -57,6 +57,7 @@ require("pi").setup({
   provider = "openrouter",
   model = "openrouter/free",
   system_prompt = "You are a helpful assistant.",
+  append_system_prompt = "Always respond concisely.",
   max_context_lines = 300,
   max_context_bytes = 24000,
   selection_context_lines = 40,
@@ -76,6 +77,8 @@ The `extensions` setting controls whether pi discovers and loads extensions (`--
 The `tools` setting controls whether pi enables built-in tools (`--no-tools`). Default: `true`.
 
 The `system_prompt` setting passes a custom system prompt to pi (`--system-prompt`). Default: `nil` (uses pi's default system prompt).
+
+The `append_system_prompt` setting appends text to pi's system prompt (`--append-system-prompt`). Default: `nil`.
 
 Use `pi --list-models` to see available models.
 
