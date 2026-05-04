@@ -76,9 +76,9 @@ The `extensions` setting controls whether pi discovers and loads extensions (`--
 
 The `tools` setting controls whether pi enables built-in tools (`--no-tools`). Default: `true`.
 
-The `system_prompt` setting passes a custom system prompt to pi (`--system-prompt`). Default: `nil` (uses pi's default system prompt).
+The `system_prompt` setting passes a custom system prompt to pi (`--system-prompt`). Default: `nil` (uses pi's default system prompt). Use with care, since this overrides pi's generated baseline instructions.
 
-The `append_system_prompt` setting appends text to pi's system prompt (`--append-system-prompt`). Default: `nil`.
+The `append_system_prompt` setting appends text to the system prompt (`--append-system-prompt`). pi.nvim always appends its non-interactive execution instruction, and this option is concatenated after it. Default: `nil`.
 
 Use `pi --list-models` to see available models.
 

@@ -25,6 +25,14 @@ local function ensure_file_backed_buffer(command_name)
   return bufnr
 end
 
+local function build_append_system_prompt(cfg)
+  local prompts = { context.get_system_prompt() }
+  if cfg.append_system_prompt and cfg.append_system_prompt ~= "" then
+    table.insert(prompts, cfg.append_system_prompt)
+  end
+  return table.concat(prompts, "\n\n")
+end
+
 local function get_pi_cmd()
   local cfg = config.get()
   local cmd = { "pi", "--mode", "rpc", "--no-session" }
@@ -49,10 +57,8 @@ local function get_pi_cmd()
     table.insert(cmd, "--system-prompt")
     table.insert(cmd, cfg.system_prompt)
   end
-  if cfg.append_system_prompt then
-    table.insert(cmd, "--append-system-prompt")
-    table.insert(cmd, cfg.append_system_prompt)
-  end
+  table.insert(cmd, "--append-system-prompt")
+  table.insert(cmd, build_append_system_prompt(cfg))
   return cmd
 end
 

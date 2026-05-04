@@ -162,6 +162,15 @@ local function write_file(path, lines)
   )
 end
 
+local function has_arg(cmd, flag)
+  for i, arg in ipairs(cmd) do
+    if arg == flag then
+      return i
+    end
+  end
+  return nil
+end
+
 local function test_pi_ask_uses_vim_system_command()
   setup_test_env()
   setup_buffer({ "print('hello')" }, "/test/file.lua")
@@ -175,6 +184,10 @@ local function test_pi_ask_uses_vim_system_command()
   MiniTest.expect.equality(cmd[3], "rpc")
   MiniTest.expect.equality(cmd[4], "--no-session")
   MiniTest.expect.equality(stdin_mode, true)
+
+  local append_idx = has_arg(cmd, "--append-system-prompt")
+  MiniTest.expect.no_equality(append_idx, nil)
+  MiniTest.expect.no_equality(cmd[append_idx + 1]:match("running inside the pi.nvim Neovim plugin"), nil)
 end
 
 local function test_pi_ask_includes_context_and_message()
@@ -188,6 +201,7 @@ local function test_pi_ask_includes_context_and_message()
   MiniTest.expect.equality(prompt.message:match("what does this do"), "what does this do")
   MiniTest.expect.equality(prompt.message:match("File: /test/file.lua"), "File: /test/file.lua")
   MiniTest.expect.equality(prompt.message:match("local x = 1"), "local x = 1")
+  MiniTest.expect.equality(prompt.message:match("running inside the pi.nvim Neovim plugin"), nil)
 end
 
 local function test_pi_ask_requires_file()
@@ -338,15 +352,7 @@ local function test_skills_option_disables_skills()
   local system = run_pi_ask("test")
   local cmd = system.get_cmd()
 
-  -- Check that --no-skills is in the command
-  local has_no_skills = false
-  for _, arg in ipairs(cmd) do
-    if arg == "--no-skills" then
-      has_no_skills = true
-      break
-    end
-  end
-  MiniTest.expect.equality(has_no_skills, true)
+  MiniTest.expect.no_equality(has_arg(cmd, "--no-skills"), nil)
 end
 
 local function test_extensions_option_disables_extensions()
@@ -356,15 +362,7 @@ local function test_extensions_option_disables_extensions()
   local system = run_pi_ask("test")
   local cmd = system.get_cmd()
 
-  -- Check that --no-extensions is in the command
-  local has_no_extensions = false
-  for _, arg in ipairs(cmd) do
-    if arg == "--no-extensions" then
-      has_no_extensions = true
-      break
-    end
-  end
-  MiniTest.expect.equality(has_no_extensions, true)
+  MiniTest.expect.no_equality(has_arg(cmd, "--no-extensions"), nil)
 end
 
 local function test_tools_option_disables_tools()
@@ -374,15 +372,20 @@ local function test_tools_option_disables_tools()
   local system = run_pi_ask("test")
   local cmd = system.get_cmd()
 
-  -- Check that --no-tools is in the command
-  local has_no_tools = false
-  for _, arg in ipairs(cmd) do
-    if arg == "--no-tools" then
-      has_no_tools = true
-      break
-    end
-  end
-  MiniTest.expect.equality(has_no_tools, true)
+  MiniTest.expect.no_equality(has_arg(cmd, "--no-tools"), nil)
+end
+
+local function test_append_system_prompt_is_concatenated()
+  setup_test_env('require("pi").setup({ append_system_prompt = "Always run tests" })')
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  local system = run_pi_ask("test")
+  local cmd = system.get_cmd()
+  local append_idx = has_arg(cmd, "--append-system-prompt")
+
+  MiniTest.expect.no_equality(append_idx, nil)
+  MiniTest.expect.no_equality(cmd[append_idx + 1]:match("running inside the pi.nvim Neovim plugin"), nil)
+  MiniTest.expect.no_equality(cmd[append_idx + 1]:match("Always run tests"), nil)
 end
 
 local function test_second_request_is_blocked_while_running()
@@ -479,6 +482,7 @@ T["PiAsk"]["reloads all changed loaded buffers on success"] = test_success_reloa
 T["PiAsk"]["skills option disables skills"] = test_skills_option_disables_skills
 T["PiAsk"]["extensions option disables extensions"] = test_extensions_option_disables_extensions
 T["PiAsk"]["tools option disables tools"] = test_tools_option_disables_tools
+T["PiAsk"]["append_system_prompt is concatenated with plugin prompt"] = test_append_system_prompt_is_concatenated
 
 T["PiAskSelection"] = MiniTest.new_set()
 T["PiAskSelection"]["uses nearby context"] = test_selection_uses_nearby_context

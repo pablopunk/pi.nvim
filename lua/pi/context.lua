@@ -77,6 +77,10 @@ local function content_block(label, text)
   return string.format("%s:\n```\n%s\n```", label, text)
 end
 
+function M.get_system_prompt()
+  return SYSTEM_PROMPT
+end
+
 function M.get_buffer_context(bufnr, config)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   local limited_lines, did_trim_lines = limit_lines(lines, config.max_context_lines)
@@ -84,7 +88,6 @@ function M.get_buffer_context(bufnr, config)
   local filename = vim.api.nvim_buf_get_name(bufnr)
 
   local parts = {
-    SYSTEM_PROMPT,
     string.format("File: %s", filename),
     string.format("Cwd: %s", vim.fn.getcwd()),
     string.format("Filetype: %s", filetype_for(bufnr)),
@@ -119,7 +122,6 @@ function M.get_visual_context(bufnr, config)
   local selected_text, selected_trimmed = truncate_to_bytes(table.concat(selected_lines, "\n"), config.max_context_bytes)
 
   local parts = {
-    SYSTEM_PROMPT,
     string.format("File: %s", filename),
     string.format("Cwd: %s", vim.fn.getcwd()),
     string.format("Filetype: %s", filetype_for(bufnr)),
