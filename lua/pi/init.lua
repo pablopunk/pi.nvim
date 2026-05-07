@@ -35,7 +35,15 @@ end
 
 local function get_pi_cmd()
   local cfg = config.get()
-  local cmd = { "pi", "--mode", "rpc", "--no-session" }
+  local binary = { "pi" }
+  if cfg.binary then
+    if type(cfg.binary) == "table" then
+      binary = vim.deepcopy(cfg.binary)
+    else
+    binary = { cfg.binary }
+    end
+  end
+  local cmd = vim.list_extend(binary, { "--mode", "rpc", "--no-session" })
   if not cfg.extensions then
     table.insert(cmd, "--no-extensions")
   end

@@ -10,6 +10,7 @@ local VALID_THINKING_LEVELS = {
 }
 
 M.defaults = {
+  binary = "pi",
   provider = nil,
   model = nil,
   thinking = "off",
@@ -37,6 +38,18 @@ local function validate_number(name, value)
 end
 
 function M.validate(opts)
+  if opts.binary ~= nil and not (type(opts.binary) == "string" or type(opts.binary) == "table") then
+    error("pi.nvim: binary must be a string or list of strings")
+  end
+
+  if type(opts.binary) == "table" then
+    for i, v in ipairs(opts.binary) do
+      if type(v) ~= "string" then
+        error(string.format("pi.nvim: binary[%d] must be a string", i))
+      end
+    end
+  end
+
   local context = opts.context
   if context ~= nil then
     if type(context) ~= "table" then

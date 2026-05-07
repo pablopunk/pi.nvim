@@ -55,6 +55,7 @@ Override only the ones you need:
 
 ```lua
 require("pi").setup({
+  binary = "~/.bin/pi", -- or { "env", "FOO=1", "pi-wrapper" }
   provider = "openrouter",
   model = "openrouter/free",
   thinking = "off", -- be careful, thinking is time-consuming, it's not a great experience if you want simplicity
@@ -76,6 +77,7 @@ require("pi").setup({
 
 | Prop | Default | Description |
 |------|---------|-------------|
+| `binary` | `"pi"` | The binary to run when invoking pi. Can be a string or an array of strings. When omitted it is set to `"pi"`. Useful for custom pi installations or wrappers. |
 | `provider` | `nil` | pi provider to use. If omitted, pi uses its own default configuration. |
 | `model` | `nil` | Model name to use. If omitted, pi uses its own default configuration. |
 | `thinking` | `"off"` | Sets pi's thinking level (`--thinking`). Supported values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. |
