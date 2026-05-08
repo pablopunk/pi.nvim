@@ -20,7 +20,7 @@ It's funny that all AI plugins for Neovim are quite complex to interact with, li
 ## Requirements
 
 - [Neovim](https://neovim.io/) 0.10+
-- [pi](https://github.com/badlogic/pi-mono) installed globally: `npm install -g @mariozechner/pi-coding-agent`
+- [pi](https://github.com/badlogic/pi-mono) installed globally: `curl -fsSL https://pi.dev/install.sh | sh`
 - Your preferred models availble in pi: `pi --list-models`
 
 ## Installation
