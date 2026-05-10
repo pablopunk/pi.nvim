@@ -82,6 +82,74 @@ local function set_status(session, status, message)
   ui.update(session)
 end
 
+local function read_file(path)
+  local ok, lines = pcall(vim.fn.readfile, path)
+  if not ok then
+    return nil
+  end
+  return table.concat(lines, "\n")
+end
+
+local function cleanup_temp_file(path)
+  if path and path ~= "" then
+    pcall(vim.fn.delete, path)
+  end
+end
+
+local function normalize_search_line(line)
+  line = line:gsub("^%s*[-*]%s+", "")
+  line = line:gsub("^%s*`?", "")
+  line = line:gsub("`?%s*$", "")
+  return line
+end
+
+local function parse_search_line(line)
+  line = normalize_search_line(line)
+  local filename, lnum_raw, rest = line:match("^(.-):(%d+):(.+)$")
+  if not filename or not lnum_raw or not rest then
+    return nil
+  end
+
+  local col_raw, line_count_raw, notes = rest:match("^(%d+),(%d+),?(.*)$")
+  if not col_raw or not line_count_raw then
+    return nil
+  end
+
+  local lnum = tonumber(lnum_raw) or 1
+  local line_count = math.max(tonumber(line_count_raw) or 1, 1)
+
+  return {
+    filename = vim.fn.fnamemodify(filename, ":p"),
+    lnum = lnum,
+    end_lnum = lnum + line_count - 1,
+    col = tonumber(col_raw) or 1,
+    text = notes or "",
+  }
+end
+
+local function parse_search_results(response)
+  local items = {}
+  for _, line in ipairs(vim.split(response or "", "\n")) do
+    if line:match("%S") then
+      local item = parse_search_line(line)
+      if item then
+        items[#items + 1] = item
+      end
+    end
+  end
+  return items
+end
+
+local function set_search_qflist(items)
+  vim.fn.setqflist({}, "r", { title = "Pi Search Results", items = items })
+  if #items > 0 then
+    vim.cmd("copen")
+    vim.notify(string.format("pi search: %d result%s", #items, #items == 1 and "" or "s"), vim.log.levels.INFO)
+  else
+    vim.notify("pi search: no results found", vim.log.levels.INFO)
+  end
+end
+
 local function normalize_path(path)
   return vim.fn.fnamemodify(path, ":p")
 end
@@ -173,7 +241,9 @@ local function finish_session(session, status, opts)
     ui.update(session)
     runner.finish(session)
   else
-    reload_changed_file_buffers(session)
+    if not opts.skip_reload then
+      reload_changed_file_buffers(session)
+    end
     ui.close(session)
     runner.finish(session)
   end
@@ -186,7 +256,9 @@ local function finish_session(session, status, opts)
   log.append_session(nil, session, session.last_message, status, session.source_path)
 end
 
-local function start_session(message, build_context)
+local function start_session(message, build_context, opts)
+  opts = opts or {}
+
   if active_session then
     vim.notify("pi is already running, please wait", vim.log.levels.WARN)
     return
@@ -197,7 +269,7 @@ local function start_session(message, build_context)
     return
   end
 
-  local source_bufnr = vim.api.nvim_get_current_buf()
+  local source_bufnr = opts.source_bufnr or vim.api.nvim_get_current_buf()
   local session = session_mod.new(source_bufnr)
   session.file_snapshots = snapshot_loaded_file_buffers()
   session.last_message = message
@@ -234,7 +306,14 @@ local function start_session(message, build_context)
         set_status(session, "thinking")
       elseif event.type == "done" then
         session.saw_terminal_event = true
-        finish_session(session, "done")
+        if opts.on_done then
+          local done_ok, done_err = pcall(opts.on_done, session)
+          if not done_ok then
+            finish_session(session, "error", { error = tostring(done_err) })
+            return
+          end
+        end
+        finish_session(session, "done", { skip_reload = opts.skip_reload })
       elseif event.type == "error" then
         session.saw_terminal_event = true
         finish_session(session, "error", { error = event.message })
@@ -316,6 +395,48 @@ function M.prompt_with_selection()
       end)
     end
   end)
+end
+
+function M.search(opts)
+  assert_supported_version()
+  opts = opts or {}
+
+  local function run(query)
+    if not query or query == "" then
+      vim.notify("No search query provided", vim.log.levels.ERROR)
+      return
+    end
+
+    local temp_file = opts.temp_file or vim.fn.tempname()
+    local temp_dir = vim.fn.fnamemodify(temp_file, ":h")
+    if temp_dir ~= "" then
+      vim.fn.mkdir(temp_dir, "p")
+    end
+    vim.fn.writefile({}, temp_file)
+
+    local bufnr = vim.api.nvim_get_current_buf()
+    start_session(query, function()
+      return context.get_search_context(bufnr, config.get(), temp_file)
+    end, {
+      skip_reload = true,
+      on_done = function()
+        local items = parse_search_results(read_file(temp_file) or "")
+        cleanup_temp_file(temp_file)
+        set_search_qflist(items)
+        if opts.on_results then
+          opts.on_results(items)
+        end
+      end,
+    })
+  end
+
+  if opts.query then
+    run(opts.query)
+  else
+    vim.ui.input({ prompt = "search pi: " }, function(input)
+      run(input)
+    end)
+  end
 end
 
 function M.cancel()

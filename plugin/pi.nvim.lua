@@ -20,6 +20,11 @@ vim.api.nvim_create_user_command("PiAskSelection", function()
   require("pi").prompt_with_selection()
 end, { range = true, desc = "Ask pi with visual selection as context" })
 
+-- Search the project semantically and populate the quickfix list.
+vim.api.nvim_create_user_command("PiSearch", function()
+  require("pi").search()
+end, { desc = "Search project with pi and open quickfix results" })
+
 -- Cancel the currently running pi request, if there is one.
 vim.api.nvim_create_user_command("PiCancel", function()
   require("pi").cancel()

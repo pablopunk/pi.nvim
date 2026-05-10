@@ -137,6 +137,19 @@ local function run_pi_ask_selection(input_text, start_line, end_line)
   return system
 end
 
+local function run_pi_search(input_text, temp_file)
+  local system = mock_system()
+  child.lua(
+    [[
+      local input_text, temp_file = ...
+      require("pi").search({ query = input_text, temp_file = temp_file })
+    ]],
+    { input_text, temp_file }
+  )
+  flush()
+  return system
+end
+
 local function decode_prompt(stdin)
   return child.lua(
     [[
@@ -250,6 +263,48 @@ local function test_selection_uses_nearby_context()
   MiniTest.expect.equality(prompt.message:match("Nearby context %(2%-5%)"), "Nearby context (2-5)")
   MiniTest.expect.equality(prompt.message:match("line1"), nil)
   MiniTest.expect.equality(prompt.message:match("line6"), nil)
+end
+
+local function test_search_includes_quickfix_instructions()
+  setup_test_env()
+  setup_buffer({ "local x = 1" }, "/test/file.lua")
+  local temp_file = child.lua_get([[vim.fn.tempname()]])
+
+  local system = run_pi_search("find x", temp_file)
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("find x"), "find x")
+  MiniTest.expect.equality(prompt.message:match("semantic project search"), "semantic project search")
+  MiniTest.expect.equality(prompt.message:match("Temp file: " .. vim.pesc(temp_file)), "Temp file: " .. temp_file)
+  MiniTest.expect.equality(
+    prompt.message:match("/absolute/path/to/file:lnum:cnum,line_count,notes"),
+    "/absolute/path/to/file:lnum:cnum,line_count,notes"
+  )
+end
+
+local function test_search_populates_quickfix_on_success()
+  setup_test_env()
+  setup_buffer({ "local x = 1", "local y = x" }, "/test/file.lua")
+  local temp_file = child.lua_get([[vim.fn.tempname()]])
+
+  local system = run_pi_search("find x", temp_file)
+  write_file(temp_file, {
+    "/test/file.lua:1:7,2,defines x",
+    "- `/test/file.lua:2:11,1,uses x`",
+  })
+
+  system.stdout('{"type":"agent_end"}\n')
+  system.exit(0, 0)
+
+  local qf = child.lua_get([[vim.fn.getqflist()]])
+  MiniTest.expect.equality(#qf, 2)
+  MiniTest.expect.equality(child.lua_get([[vim.api.nvim_buf_get_name(vim.fn.getqflist()[1].bufnr)]]), "/test/file.lua")
+  MiniTest.expect.equality(qf[1].lnum, 1)
+  MiniTest.expect.equality(qf[1].end_lnum, 2)
+  MiniTest.expect.equality(qf[1].col, 7)
+  MiniTest.expect.equality(qf[1].text, "defines x")
+  MiniTest.expect.equality(qf[2].text, "uses x")
+  MiniTest.expect.equality(child.lua_get([[vim.fn.filereadable(...)]], { temp_file }), 0)
 end
 
 local function test_chunked_stdout_updates_and_success_notifies_done()
@@ -559,6 +614,10 @@ T["PiAsk"]["append_system_prompt is concatenated with plugin prompt"] = test_app
 
 T["PiAskSelection"] = MiniTest.new_set()
 T["PiAskSelection"]["uses nearby context"] = test_selection_uses_nearby_context
+
+T["PiSearch"] = MiniTest.new_set()
+T["PiSearch"]["includes quickfix instructions"] = test_search_includes_quickfix_instructions
+T["PiSearch"]["populates quickfix on success"] = test_search_populates_quickfix_on_success
 
 T["Session"] = MiniTest.new_set()
 T["Session"]["handles chunked stdout and notifies on success"] = test_chunked_stdout_updates_and_success_notifies_done

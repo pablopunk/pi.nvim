@@ -16,6 +16,7 @@ It's funny that all AI plugins for Neovim are quite complex to interact with, li
 - **Unsaved-buffer aware**: Tells pi to treat the sent Neovim buffer content as the source of truth, even if the on-disk file is stale.
 - **Simple configuration**: Just set your preferred AI model.
 - **Gets out of your way**: You ask it. It does it. Done.
+- **Semantic search**: Ask natural-language project questions and jump through matches in the quickfix list.
 
 ## Requirements
 
@@ -123,6 +124,9 @@ vim.keymap.set("n", "<leader>ai", ":PiAsk<CR>", { desc = "Ask pi" })
 
 -- Ask pi with visual selection as context
 vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selection)" })
+
+-- Search the project and populate quickfix results
+vim.keymap.set("n", "<leader>as", ":PiSearch<CR>", { desc = "Search with pi" })
 ```
 
 ## Usage
@@ -133,8 +137,21 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 |---------|------|-------------|
 | `:PiAsk` | Normal | Prompt for input, sends it + current buffer as context |
 | `:PiAskSelection` | Visual | Same as :PiAsk but also sends selected lines as context |
+| `:PiSearch` | Normal | Prompt for a semantic project search and populate the quickfix list |
 | `:PiCancel` | Normal | Cancel the active pi request immediately |
 | `:PiLog` | Normal | Open the session log in a new split |
+
+### Semantic search
+
+Run `:PiSearch` and ask questions like:
+
+```text
+Find where LSP keymaps are configured
+Find code involved in opening floating windows
+Find all AI-related config
+```
+
+Pi writes structured locations into Neovim's quickfix list and opens it automatically. Navigate results with `:cnext` and `:cprev`.
 
 ## Behavior
 
