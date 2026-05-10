@@ -537,6 +537,142 @@ local function test_reloaded_buffer_can_be_written_without_changed_since_reading
   MiniTest.expect.equality(last_notification(), nil)
 end
 
+local function test_run_with_custom_context_builder()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  local system = mock_system()
+  child.lua([[
+    require("pi").run({
+      message = "custom ctx",
+      bufnr = 0,
+      build_context = function() return "CUSTOM_CONTEXT" end,
+    })
+  ]])
+  flush()
+
+  local prompt = decode_prompt(system.get_stdin())
+  MiniTest.expect.equality(prompt.message:match("custom ctx"), "custom ctx")
+  MiniTest.expect.equality(prompt.message:match("CUSTOM_CONTEXT"), "CUSTOM_CONTEXT")
+end
+
+local function test_run_with_custom_cmd()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  local system = mock_system()
+  child.lua([[
+    require("pi").run({
+      message = "custom cmd",
+      cmd = { "custom-binary", "--flag" },
+      build_context = function() return "ctx" end,
+    })
+  ]])
+  flush()
+
+  local cmd = system.get_cmd()
+  MiniTest.expect.equality(cmd[1], "custom-binary")
+  MiniTest.expect.equality(cmd[2], "--flag")
+end
+
+local function test_get_cmd_returns_default_command()
+  setup_test_env()
+  local cmd = child.lua_get([[require("pi").get_cmd()]])
+
+  MiniTest.expect.equality(cmd[1], "pi")
+  MiniTest.expect.equality(has_arg(cmd, "--mode"), 2)
+  MiniTest.expect.equality(has_arg(cmd, "--no-session"), 4)
+end
+
+local function test_run_calls_on_done_before_success()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  local system = mock_system()
+  child.lua([[
+    _G.__pi_test_on_done_called = false
+    _G.__pi_test_on_done_session = nil
+    require("pi").run({
+      message = "test",
+      build_context = function() return "ctx" end,
+      on_done = function(session)
+        _G.__pi_test_on_done_called = true
+        _G.__pi_test_on_done_session = session and session.status or nil
+      end,
+    })
+  ]])
+  system.stdout('{"type":"agent_end"}\n')
+  system.exit(0, 0)
+
+  MiniTest.expect.equality(child.lua_get([[_G.__pi_test_on_done_called]]), true)
+  MiniTest.expect.equality(child.lua_get([[_G.__pi_test_on_done_session]]), "done")
+end
+
+local function test_run_on_done_error_still_finishes_success()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  local system = mock_system()
+  child.lua([[
+    require("pi").run({
+      message = "test",
+      build_context = function() return "ctx" end,
+      on_done = function()
+        error("on_done boom")
+      end,
+    })
+  ]])
+  system.stdout('{"type":"agent_end"}\n')
+  system.exit(0, 0)
+
+  MiniTest.expect.equality(child.lua_get([[require("pi").is_running()]]), false)
+  MiniTest.expect.equality(child.lua_get([[require("pi")._get_last_session().status]]), "done")
+end
+
+local function test_run_skip_reload_prevents_buffer_reload()
+  setup_test_env()
+  local file = child.lua_get([[vim.fn.tempname() .. ".lua"]])
+  write_file(file, { "from disk" })
+  setup_buffer({ "code" }, file)
+  child.lua([[vim.bo.modified = true]])
+  -- skip_reload bypasses the post-success reload_changed_file_buffers() gate entirely,
+  -- so no loaded file-backed buffers (including this one) are reloaded.
+
+  local system = mock_system()
+  child.lua([[
+    require("pi").run({
+      message = "test",
+      bufnr = vim.api.nvim_get_current_buf(),
+      skip_reload = true,
+      build_context = function() return "ctx" end,
+    })
+  ]])
+  write_file(file, { "updated on disk" })
+  system.stdout('{"type":"agent_end"}\n')
+  system.exit(0, 0)
+
+  MiniTest.expect.equality(child.lua_get([[vim.bo.modified]]), true)
+  local lines = child.lua_get([[vim.api.nvim_buf_get_lines(0, 0, -1, false)]])
+  MiniTest.expect.equality(lines[1], "code")
+end
+
+local function test_run_build_context_error_finishes_with_error()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  child.lua([[
+    require("pi").run({
+      message = "test",
+      build_context = function() error("ctx boom") end,
+    })
+  ]])
+  flush()
+
+  MiniTest.expect.equality(child.lua_get([[require("pi").is_running()]]), false)
+  MiniTest.expect.equality(child.lua_get([[require("pi")._get_last_session().status]]), "error")
+  MiniTest.expect.no_equality(last_notification().msg:match("ctx boom"), nil)
+end
+
 local T = MiniTest.new_set()
 
 T["PiAsk"] = MiniTest.new_set()
@@ -567,5 +703,14 @@ T["Session"]["clean exit without terminal event is an error"] = test_clean_exit_
 T["Session"]["turn_end does not finish session (multi-turn tool use)"] = test_turn_end_does_not_finish_session
 T["Session"]["turn_end followed by agent_end completes"] = test_turn_end_followed_by_agent_end_completes
 T["Session"]["cancel closes immediately"] = test_cancel_kills_process_and_closes_immediately
+
+T["run API"] = MiniTest.new_set()
+T["run API"]["custom context builder"] = test_run_with_custom_context_builder
+T["run API"]["custom cmd"] = test_run_with_custom_cmd
+T["run API"]["get_cmd returns default command"] = test_get_cmd_returns_default_command
+T["run API"]["calls on_done before success"] = test_run_calls_on_done_before_success
+T["run API"]["on_done error still finishes success"] = test_run_on_done_error_still_finishes_success
+T["run API"]["skip_reload prevents buffer reload"] = test_run_skip_reload_prevents_buffer_reload
+T["run API"]["build_context error finishes with error"] = test_run_build_context_error_finishes_with_error
 
 return T

@@ -33,14 +33,14 @@ local function build_append_system_prompt(cfg)
   return table.concat(prompts, "\n\n")
 end
 
-local function get_pi_cmd()
+function M.get_cmd()
   local cfg = config.get()
   local binary = { "pi" }
   if cfg.binary then
     if type(cfg.binary) == "table" then
       binary = vim.deepcopy(cfg.binary)
     else
-    binary = { cfg.binary }
+      binary = { cfg.binary }
     end
   end
   local cmd = vim.list_extend(binary, { "--mode", "rpc", "--no-session" })
@@ -173,7 +173,15 @@ local function finish_session(session, status, opts)
     ui.update(session)
     runner.finish(session)
   else
-    reload_changed_file_buffers(session)
+    if session.on_done then
+      local ok, err = pcall(session.on_done, session)
+      if not ok then
+        vim.notify("pi on_done error: " .. tostring(err), vim.log.levels.ERROR)
+      end
+    end
+    if not session.skip_reload then
+      reload_changed_file_buffers(session)
+    end
     ui.close(session)
     runner.finish(session)
   end
@@ -186,7 +194,15 @@ local function finish_session(session, status, opts)
   log.append_session(nil, session, session.last_message, status, session.source_path)
 end
 
-local function start_session(message, build_context)
+function M.run(opts)
+  opts = vim.deepcopy(opts or {})
+  local message = opts.message
+  local build_context_fn = opts.build_context
+  local bufnr = opts.bufnr or vim.api.nvim_get_current_buf()
+  local cmd = opts.cmd or M.get_cmd()
+  local skip_reload = opts.skip_reload
+  local on_done = opts.on_done
+
   if active_session then
     vim.notify("pi is already running, please wait", vim.log.levels.WARN)
     return
@@ -197,16 +213,24 @@ local function start_session(message, build_context)
     return
   end
 
-  local source_bufnr = vim.api.nvim_get_current_buf()
+  if not build_context_fn then
+    build_context_fn = function()
+      return context.get_buffer_context(bufnr, config.get())
+    end
+  end
+
+  local source_bufnr = bufnr
   local session = session_mod.new(source_bufnr)
   session.file_snapshots = snapshot_loaded_file_buffers()
   session.last_message = message
+  session.skip_reload = skip_reload
+  session.on_done = on_done
   active_session = session
   last_session = session
   ui.open(session)
   set_status(session, "collecting_context")
 
-  local ok, built_context = pcall(build_context)
+  local ok, built_context = pcall(build_context_fn)
   if not ok then
     finish_session(session, "error", { error = built_context })
     return
@@ -219,7 +243,7 @@ local function start_session(message, build_context)
 
   set_status(session, "starting")
 
-  local process, err = runner.start(session, get_pi_cmd(), payload, {
+  local process, err = runner.start(session, cmd, payload, {
     on_event = function(event)
       if not active_session or active_session ~= session or session.cancelled then
         return
@@ -294,9 +318,13 @@ function M.prompt_with_buffer()
 
   vim.ui.input({ prompt = context.format_prompt_label(bufnr, nil) }, function(input)
     if input then
-      start_session(input, function()
-        return context.get_buffer_context(bufnr, config.get())
-      end)
+      M.run({
+        message = input,
+        bufnr = bufnr,
+        build_context = function()
+          return context.get_buffer_context(bufnr, config.get())
+        end,
+      })
     end
   end)
 end
@@ -311,9 +339,13 @@ function M.prompt_with_selection()
   local range = context.get_visual_selection_range()
   vim.ui.input({ prompt = context.format_prompt_label(bufnr, range) }, function(input)
     if input then
-      start_session(input, function()
-        return context.get_visual_context(bufnr, config.get())
-      end)
+      M.run({
+        message = input,
+        bufnr = bufnr,
+        build_context = function()
+          return context.get_visual_context(bufnr, config.get())
+        end,
+      })
     end
   end)
 end

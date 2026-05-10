@@ -145,6 +145,10 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 - Trims oversized context for speed instead of always sending the full file.
 
 
+## API
+
+`pi.nvim` exposes `get_cmd()` and `run()` for programmatic use. See [this gist](https://gist.github.com/nhlmg93/49c1e5ec1e1df20b5050c770840cd7b2) for a minimal `:PiSearch` example built on `run()`.
+
 ## License
 
 MIT
