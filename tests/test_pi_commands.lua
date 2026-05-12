@@ -35,6 +35,19 @@ local function set_cursor(line, col)
   child.api.nvim_win_set_cursor(0, { line, col or 0 })
 end
 
+--- Applies diagnostics to the current test buffer.
+--- @param diagnostics table[] Diagnostics accepted by `vim.diagnostic.set`.
+local function set_diagnostics(diagnostics)
+  child.lua(
+    [[
+      local diagnostics = ...
+      local ns = vim.api.nvim_create_namespace("pi.nvim.tests")
+      vim.diagnostic.set(ns, 0, diagnostics)
+    ]],
+    { diagnostics }
+  )
+end
+
 local function mock_system()
   child.lua([[
     _G.__pi_test_system = {
@@ -250,6 +263,95 @@ local function test_selection_uses_nearby_context()
   MiniTest.expect.equality(prompt.message:match("Nearby context %(2%-5%)"), "Nearby context (2-5)")
   MiniTest.expect.equality(prompt.message:match("line1"), nil)
   MiniTest.expect.equality(prompt.message:match("line6"), nil)
+end
+
+--- Verifies that `:PiAsk` sends all buffer diagnostics when enabled.
+local function test_pi_ask_includes_all_diagnostics_when_enabled()
+  setup_test_env('require("pi").setup({ context = { diagnostics = { enabled = true } } })')
+  setup_buffer({ "local x = 1", "local y = 2", "return x" }, "/test/diagnostics.lua")
+  set_diagnostics({
+    {
+      lnum = 0,
+      col = 6,
+      message = "unused local x",
+      severity = vim.diagnostic.severity.WARN,
+      source = "luacheck",
+    },
+    {
+      lnum = 1,
+      col = 6,
+      message = "unused local y",
+      severity = vim.diagnostic.severity.INFO,
+      source = "luacheck",
+    },
+  })
+
+  local system = run_pi_ask("fix diagnostics")
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("Diagnostics"), "Diagnostics")
+  MiniTest.expect.equality(prompt.message:match("unused local x"), "unused local x")
+  MiniTest.expect.equality(prompt.message:match("unused local y"), "unused local y")
+  MiniTest.expect.equality(prompt.message:match("WARN, luacheck"), "WARN, luacheck")
+end
+
+--- Verifies that `:PiAskSelection` filters diagnostics to the selected range.
+local function test_pi_ask_selection_includes_only_overlapping_diagnostics_when_enabled()
+  setup_test_env('require("pi").setup({ context = { diagnostics = { enabled = true } } })')
+  setup_buffer({ "line1", "line2", "line3", "line4", "line5" }, "/test/select-diagnostics.lua")
+  set_diagnostics({
+    {
+      lnum = 0,
+      col = 0,
+      message = "outside selection",
+      severity = vim.diagnostic.severity.WARN,
+      source = "test-linter",
+    },
+    {
+      lnum = 2,
+      col = 0,
+      message = "inside selection",
+      severity = vim.diagnostic.severity.ERROR,
+      source = "test-linter",
+    },
+    {
+      lnum = 3,
+      col = 0,
+      end_lnum = 4,
+      message = "overlaps selection edge",
+      severity = vim.diagnostic.severity.WARN,
+      source = "test-linter",
+    },
+  })
+
+  local system = run_pi_ask_selection("fix selected diagnostics", 3, 4)
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("Diagnostics in selection"), "Diagnostics in selection")
+  MiniTest.expect.equality(prompt.message:match("inside selection"), "inside selection")
+  MiniTest.expect.equality(prompt.message:match("overlaps selection edge"), "overlaps selection edge")
+  MiniTest.expect.equality(prompt.message:match("outside selection"), nil)
+end
+
+--- Verifies that diagnostics stay opt-in with the default configuration.
+local function test_pi_ask_does_not_include_diagnostics_by_default()
+  setup_test_env()
+  setup_buffer({ "local x = 1" }, "/test/no-diagnostics.lua")
+  set_diagnostics({
+    {
+      lnum = 0,
+      col = 0,
+      message = "should not be sent",
+      severity = vim.diagnostic.severity.WARN,
+      source = "test-linter",
+    },
+  })
+
+  local system = run_pi_ask("ignore diagnostics")
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("should not be sent"), nil)
+  MiniTest.expect.equality(prompt.message:match("Diagnostics"), nil)
 end
 
 local function test_chunked_stdout_updates_and_success_notifies_done()
@@ -681,6 +783,8 @@ T["PiAsk"]["includes prompt message and context"] = test_pi_ask_includes_context
 T["PiAsk"]["requires a file"] = test_pi_ask_requires_file
 T["PiAsk"]["trims context for speed"] = test_context_is_trimmed_for_speed
 T["PiAsk"]["uses context around cursor"] = test_pi_ask_uses_context_around_cursor
+T["PiAsk"]["includes all diagnostics when enabled"] = test_pi_ask_includes_all_diagnostics_when_enabled
+T["PiAsk"]["does not include diagnostics by default"] = test_pi_ask_does_not_include_diagnostics_by_default
 T["PiAsk"]["blocks second request while running"] = test_second_request_is_blocked_while_running
 T["PiAsk"]["overwrites modified buffer with disk edits on success"] = test_success_overwrites_modified_buffer_with_disk_edits
 T["PiAsk"]["reloads unmodified buffer on success"] = test_success_reloads_unmodified_buffer
@@ -695,6 +799,7 @@ T["PiAsk"]["append_system_prompt is concatenated with plugin prompt"] = test_app
 
 T["PiAskSelection"] = MiniTest.new_set()
 T["PiAskSelection"]["uses nearby context"] = test_selection_uses_nearby_context
+T["PiAskSelection"]["includes only overlapping diagnostics when enabled"] = test_pi_ask_selection_includes_only_overlapping_diagnostics_when_enabled
 
 T["Session"] = MiniTest.new_set()
 T["Session"]["handles chunked stdout and notifies on success"] = test_chunked_stdout_updates_and_success_notifies_done

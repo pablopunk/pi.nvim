@@ -1,3 +1,4 @@
+--- Configuration helpers for pi.nvim.
 local M = {}
 
 local VALID_THINKING_LEVELS = {
@@ -24,6 +25,9 @@ M.defaults = {
     selection = {
       surrounding_lines = 40,
     },
+    diagnostics = {
+      enabled = false,
+    },
   },
   skills = true,
   extensions = true,
@@ -31,12 +35,17 @@ M.defaults = {
 
 local values = vim.deepcopy(M.defaults)
 
+--- Validates a positive numeric configuration value.
+--- @param name string Human-readable config key name.
+--- @param value number Value to validate.
 local function validate_number(name, value)
   if type(value) ~= "number" or value < 1 then
     error(string.format("pi.nvim: %s must be a positive number", name))
   end
 end
 
+--- Validates user-provided configuration overrides.
+--- @param opts table User configuration passed to `setup`.
 function M.validate(opts)
   if opts.binary ~= nil and not (type(opts.binary) == "string" or type(opts.binary) == "table") then
     error("pi.nvim: binary must be a string or list of strings")
@@ -74,6 +83,14 @@ function M.validate(opts)
         validate_number("context.selection.surrounding_lines", context.selection.surrounding_lines)
       end
     end
+    if context.diagnostics ~= nil then
+      if type(context.diagnostics) ~= "table" then
+        error("pi.nvim: context.diagnostics must be a table")
+      end
+      if context.diagnostics.enabled ~= nil and type(context.diagnostics.enabled) ~= "boolean" then
+        error("pi.nvim: context.diagnostics.enabled must be a boolean")
+      end
+    end
   end
   if opts.skills ~= nil and type(opts.skills) ~= "boolean" then
     error("pi.nvim: skills must be a boolean")
@@ -97,6 +114,9 @@ function M.validate(opts)
   end
 end
 
+--- Merges user options with defaults and stores the effective config.
+--- @param opts? table User configuration overrides.
+--- @return table values Effective configuration.
 function M.setup(opts)
   opts = opts or {}
   M.validate(opts)
@@ -104,6 +124,8 @@ function M.setup(opts)
   return values
 end
 
+--- Returns the currently active configuration.
+--- @return table values Effective configuration.
 function M.get()
   return values
 end

@@ -12,7 +12,7 @@ It's funny that all AI plugins for Neovim are quite complex to interact with, li
 
 ## Features
 
-- **Context aware**: Sends your current buffer, cwd, and selection as context.
+- **Context aware**: Sends your current buffer, cwd, selection, and optional diagnostics as context.
 - **Unsaved-buffer aware**: Tells pi to treat the sent Neovim buffer content as the source of truth, even if the on-disk file is stale.
 - **Simple configuration**: Just set your preferred AI model.
 - **Gets out of your way**: You ask it. It does it. Done.
@@ -69,6 +69,9 @@ require("pi").setup({
     selection = {
       surrounding_lines = 40,
     },
+    diagnostics = {
+      enabled = false,
+    },
   },
   skills = true,
   extensions = true,
@@ -86,6 +89,7 @@ require("pi").setup({
 | `context.max_bytes` | `24000` | Maximum size in bytes for sent context before trimming. |
 | `context.ask.surrounding_lines` | `80` | Number of lines before and after the current cursor line to include for `:PiAsk`. |
 | `context.selection.surrounding_lines` | `40` | Number of lines before and after the current visual selection to include for `:PiAskSelection`. |
+| `context.diagnostics.enabled` | `false` | Includes Neovim diagnostics in the sent context. `:PiAsk` sends all buffer diagnostics; `:PiAskSelection` sends only diagnostics overlapping the selected lines. |
 | `skills` | `true` | Whether pi discovers and loads skills. Set to `false` to pass `--no-skills`. |
 | `extensions` | `true` | Whether pi discovers and loads extensions. Set to `false` to pass `--no-extensions`. |
 
@@ -142,6 +146,7 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 - Uses `nvim-notify` for status updates when available; otherwise falls back to a small floating status window.
 - Reloads changed loaded buffers on success so pi's on-disk edits are reflected in Neovim.
 - Treats sent buffer/selection context as newer than disk, so unsaved Neovim changes are the source of truth for the agent.
+- Optionally includes Neovim diagnostics from LSPs/linters via `vim.diagnostic`.
 - Trims oversized context for speed instead of always sending the full file.
 
 
