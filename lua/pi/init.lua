@@ -39,8 +39,11 @@ function M.get_cmd()
   if cfg.binary then
     if type(cfg.binary) == "table" then
       binary = vim.deepcopy(cfg.binary)
+      for i, part in ipairs(binary) do
+        binary[i] = vim.fn.expand(part)
+      end
     else
-      binary = { cfg.binary }
+      binary = { vim.fn.expand(cfg.binary) }
     end
   end
   local cmd = vim.list_extend(binary, { "--mode", "rpc", "--no-session" })
