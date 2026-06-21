@@ -139,12 +139,9 @@ function M.finish(session)
     return
   end
 
-  local stdin = session.process._state and session.process._state.stdin
-  if stdin then
-    pcall(function()
-      stdin:close()
-    end)
-  elseif not session.process:is_closing() then
+  local ok, err = pcall(session.process.write, session.process, nil)
+  if not ok then
+    -- fallback: kill if write fails (process already dead)
     pcall(session.process.kill, session.process, 15)
   end
 end

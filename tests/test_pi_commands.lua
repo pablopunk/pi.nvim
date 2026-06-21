@@ -66,7 +66,12 @@ local function mock_system()
       _G.__pi_test_system.on_exit = on_exit
       return {
         write = function(_, data)
-          table.insert(_G.__pi_test_system.writes, data)
+          if data == nil then
+            _G.__pi_test_system.stdin_closed = true
+            _G.__pi_test_system.closing = true
+          else
+            table.insert(_G.__pi_test_system.writes, data)
+          end
         end,
         kill = function(_, signal)
           _G.__pi_test_system.killed = signal
@@ -75,17 +80,6 @@ local function mock_system()
         is_closing = function()
           return _G.__pi_test_system.closing
         end,
-        _state = {
-          stdin = {
-            close = function()
-              _G.__pi_test_system.stdin_closed = true
-              _G.__pi_test_system.closing = true
-            end,
-            flush = function()
-              -- No-op in tests
-            end,
-          },
-        },
       }
     end
   ]])
