@@ -769,6 +769,62 @@ local function test_run_build_context_error_finishes_with_error()
   MiniTest.expect.no_equality(last_notification().msg:match("ctx boom"), nil)
 end
 
+local function test_run_startup_failure_finishes_with_error()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  child.lua([[
+    vim.system = function()
+      error("spawn boom")
+    end
+
+    require("pi").run({
+      message = "test",
+      build_context = function() return "ctx" end,
+    })
+  ]])
+  flush()
+
+  MiniTest.expect.equality(child.lua_get([[require("pi").is_running()]]), false)
+  MiniTest.expect.equality(child.lua_get([[require("pi")._get_last_session().status]]), "error")
+  MiniTest.expect.no_equality(last_notification().msg:match("spawn boom"), nil)
+end
+
+local function test_run_stdin_write_failure_kills_process_and_finishes_with_error()
+  setup_test_env()
+  setup_buffer({ "code" }, "/test/file.lua")
+
+  child.lua([[
+    _G.__pi_test_killed_after_write_error = nil
+    vim.system = function()
+      return {
+        write = function(_, data)
+          if data ~= nil then
+            error("write boom")
+          end
+        end,
+        kill = function(_, signal)
+          _G.__pi_test_killed_after_write_error = signal
+        end,
+        is_closing = function()
+          return false
+        end,
+      }
+    end
+
+    require("pi").run({
+      message = "test",
+      build_context = function() return "ctx" end,
+    })
+  ]])
+  flush()
+
+  MiniTest.expect.equality(child.lua_get([[_G.__pi_test_killed_after_write_error]]), 15)
+  MiniTest.expect.equality(child.lua_get([[require("pi").is_running()]]), false)
+  MiniTest.expect.equality(child.lua_get([[require("pi")._get_last_session().status]]), "error")
+  MiniTest.expect.no_equality(last_notification().msg:match("write boom"), nil)
+end
+
 local T = MiniTest.new_set()
 
 T["PiAsk"] = MiniTest.new_set()
@@ -811,5 +867,7 @@ T["run API"]["calls on_done before success"] = test_run_calls_on_done_before_suc
 T["run API"]["on_done error still finishes success"] = test_run_on_done_error_still_finishes_success
 T["run API"]["skip_reload prevents buffer reload"] = test_run_skip_reload_prevents_buffer_reload
 T["run API"]["build_context error finishes with error"] = test_run_build_context_error_finishes_with_error
+T["run API"]["startup failure finishes with error"] = test_run_startup_failure_finishes_with_error
+T["run API"]["stdin write failure kills process and finishes with error"] = test_run_stdin_write_failure_kills_process_and_finishes_with_error
 
 return T
