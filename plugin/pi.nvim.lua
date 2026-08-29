@@ -16,8 +16,8 @@ vim.api.nvim_create_user_command("PiAsk", function()
 end, { desc = "Ask pi with current buffer as context" })
 
 -- Open a prompt using the current visual selection as context.
-vim.api.nvim_create_user_command("PiAskSelection", function()
-  require("pi").prompt_with_selection()
+vim.api.nvim_create_user_command("PiAskSelection", function(opts)
+  require("pi").prompt_with_selection(opts)
 end, { range = true, desc = "Ask pi with visual selection as context" })
 
 -- Cancel the currently running pi request, if there is one.

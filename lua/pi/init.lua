@@ -332,21 +332,25 @@ function M.prompt_with_buffer()
   end)
 end
 
-function M.prompt_with_selection()
+--- Prompts for input and sends the selected lines as context.
+--- @param opts? table Optional `nvim_create_user_command` callback options.
+function M.prompt_with_selection(opts)
   assert_supported_version()
   local bufnr = ensure_file_backed_buffer("PiAskSelection")
   if not bufnr then
     return
   end
 
-  local range = context.get_visual_selection_range()
+  -- Resolve the range before `vim.ui.input` yields: opening the input leaves
+  -- Visual mode, so the live selection is gone by the time the callback runs.
+  local range = context.get_visual_selection_range(opts)
   vim.ui.input({ prompt = context.format_prompt_label(bufnr, range) }, function(input)
     if input then
       M.run({
         message = input,
         bufnr = bufnr,
         build_context = function()
-          return context.get_visual_context(bufnr, config.get())
+          return context.get_visual_context(bufnr, config.get(), range)
         end,
       })
     end

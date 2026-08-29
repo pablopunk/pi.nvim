@@ -144,6 +144,57 @@ local function run_pi_ask_selection(input_text, start_line, end_line)
   return system
 end
 
+--- Runs `:PiAskSelection` through a `<Cmd>` mapping that stays in Visual mode.
+--- Stale `'<`/`'>` marks are set first so a regression reads them instead of the
+--- live selection.
+local function run_pi_ask_selection_in_visual_mode(input_text, stale_start, stale_end, start_line, end_line)
+  local system = mock_system()
+  child.api.nvim_buf_set_mark(0, "<", stale_start, 0, {})
+  child.api.nvim_buf_set_mark(0, ">", stale_end, 999, {})
+  child.lua(
+    string.format(
+      [[
+      vim.ui.input = function(_, callback)
+        callback(%q)
+      end
+    ]],
+      input_text
+    )
+  )
+  child.lua(
+    [[
+      local start_line, end_line = ...
+      local function feed(keys)
+        vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(keys, true, false, true), "x", false)
+      end
+      feed(start_line .. "GV" .. end_line .. "G")
+      feed("<Cmd>PiAskSelection<CR>")
+      feed("<Esc>")
+    ]],
+    { start_line, end_line }
+  )
+  flush()
+  return system
+end
+
+--- Runs `:PiAskSelection` with an explicit command range.
+local function run_pi_ask_selection_with_range(input_text, start_line, end_line)
+  local system = mock_system()
+  child.lua(
+    string.format(
+      [[
+      vim.ui.input = function(_, callback)
+        callback(%q)
+      end
+    ]],
+      input_text
+    )
+  )
+  child.cmd(string.format("%d,%dPiAskSelection", start_line, end_line))
+  flush()
+  return system
+end
+
 local function decode_prompt(stdin)
   return child.lua(
     [[
@@ -257,6 +308,42 @@ local function test_selection_uses_nearby_context()
   MiniTest.expect.equality(prompt.message:match("Nearby context %(2%-5%)"), "Nearby context (2-5)")
   MiniTest.expect.equality(prompt.message:match("line1"), nil)
   MiniTest.expect.equality(prompt.message:match("line6"), nil)
+end
+
+--- Verifies the live selection wins over stale `'<`/`'>` marks when the command
+--- is invoked without leaving Visual mode (e.g. a `<Cmd>` mapping).
+local function test_selection_uses_live_visual_range()
+  setup_test_env('require("pi").setup({ context = { max_bytes = 1000, selection = { surrounding_lines = 1 } } })')
+  setup_buffer({ "line1", "line2", "line3", "line4", "line5", "line6" }, "/test/live.lua")
+
+  local system = run_pi_ask_selection_in_visual_mode("focus selection", 1, 2, 4, 5)
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("Selected lines: 4%-5"), "Selected lines: 4-5")
+  MiniTest.expect.equality(prompt.message:match("line1"), nil)
+end
+
+--- Verifies that an explicit command range is honoured.
+local function test_selection_uses_explicit_command_range()
+  setup_test_env('require("pi").setup({ context = { max_bytes = 1000, selection = { surrounding_lines = 1 } } })')
+  setup_buffer({ "line1", "line2", "line3", "line4", "line5", "line6" }, "/test/range.lua")
+
+  local system = run_pi_ask_selection_with_range("focus range", 2, 3)
+  local prompt = decode_prompt(system.get_stdin())
+
+  MiniTest.expect.equality(prompt.message:match("Selected lines: 2%-3"), "Selected lines: 2-3")
+end
+
+--- Verifies that unset `'<`/`'>` marks produce no `0:0` label.
+local function test_selection_label_omits_range_without_selection()
+  setup_test_env()
+  setup_buffer({ "line1", "line2" }, "/test/label.lua")
+
+  local label = child.lua_get([[
+    require("pi.context").format_prompt_label(0, require("pi.context").get_visual_selection_range())
+  ]])
+
+  MiniTest.expect.equality(label, "ask pi (label.lua): ")
 end
 
 --- Verifies that `:PiAsk` sends all buffer diagnostics when enabled.
@@ -849,6 +936,9 @@ T["PiAsk"]["append_system_prompt is concatenated with plugin prompt"] = test_app
 
 T["PiAskSelection"] = MiniTest.new_set()
 T["PiAskSelection"]["uses nearby context"] = test_selection_uses_nearby_context
+T["PiAskSelection"]["uses live visual range when invoked from visual mode"] = test_selection_uses_live_visual_range
+T["PiAskSelection"]["uses explicit command range"] = test_selection_uses_explicit_command_range
+T["PiAskSelection"]["omits range in label without a selection"] = test_selection_label_omits_range_without_selection
 T["PiAskSelection"]["includes only overlapping diagnostics when enabled"] = test_pi_ask_selection_includes_only_overlapping_diagnostics_when_enabled
 
 T["Session"] = MiniTest.new_set()

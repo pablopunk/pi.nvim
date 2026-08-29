@@ -37,20 +37,50 @@ function M.buffer_is_file_backed(bufnr)
   return filename ~= nil and filename ~= ""
 end
 
---- Returns the current visual selection as a 1-based inclusive line range.
+--- Visual and Select mode short-mode names reported by `mode()`.
+local VISUAL_MODES = {
+  v = true,
+  V = true,
+  ["\22"] = true, -- CTRL-V, blockwise visual
+  s = true,
+  S = true,
+  ["\19"] = true, -- CTRL-S, blockwise select
+}
+
+--- Builds a normalized 1-based inclusive range from two line numbers.
+--- @param start_line integer|nil First line.
+--- @param end_line integer|nil Last line.
 --- @return table|nil range Selection range with `start` and `end` keys.
-function M.get_visual_selection_range()
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-  if not start_pos or not end_pos then
+local function make_range(start_line, end_line)
+  if not start_line or not end_line or start_line < 1 or end_line < 1 then
     return nil
   end
-  local start_line = start_pos[2]
-  local end_line = end_pos[2]
   if start_line > end_line then
     start_line, end_line = end_line, start_line
   end
   return { start = start_line, ["end"] = end_line }
+end
+
+--- Returns the selected line range as a 1-based inclusive range.
+---
+--- The `'<` and `'>` marks are only updated when Visual mode is left, so they
+--- report the *previous* selection when the caller still sits in Visual mode
+--- (`<Cmd>` mappings and Lua keymap callbacks never leave it). Resolution order:
+---   1. An explicit command range (`:'<,'>PiAskSelection`, `:5,9PiAskSelection`).
+---   2. The live selection via the `v` mark and the cursor, while in Visual mode.
+---   3. The `'<`/`'>` marks, i.e. the last selection made in this buffer.
+--- @param opts? table Optional `nvim_create_user_command` callback options.
+--- @return table|nil range Selection range with `start` and `end` keys.
+function M.get_visual_selection_range(opts)
+  if opts and opts.range and opts.range > 0 then
+    return make_range(opts.line1, opts.line2)
+  end
+
+  if VISUAL_MODES[vim.fn.mode()] then
+    return make_range(vim.fn.getpos("v")[2], vim.fn.getpos(".")[2])
+  end
+
+  return make_range(vim.fn.getpos("'<")[2], vim.fn.getpos("'>")[2])
 end
 
 --- Builds the prompt label shown in `vim.ui.input`.
@@ -252,11 +282,16 @@ end
 --- Builds prompt context for `:PiAskSelection`.
 --- @param bufnr integer Buffer handle.
 --- @param config table Active pi.nvim configuration.
+--- @param range? table Pre-resolved selection range with `start` and `end` keys.
 --- @return string context Prompt context payload.
-function M.get_visual_context(bufnr, config)
+function M.get_visual_context(bufnr, config, range)
   local filename = vim.api.nvim_buf_get_name(bufnr)
   local all_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-  local selection_range = M.get_visual_selection_range() or { start = 1, ["end"] = #all_lines }
+  local selection_range = range or M.get_visual_selection_range() or { start = 1, ["end"] = #all_lines }
+  selection_range = {
+    start = math.min(selection_range.start, math.max(1, #all_lines)),
+    ["end"] = math.min(selection_range["end"], math.max(1, #all_lines)),
+  }
   local surrounding_lines = config.context.selection.surrounding_lines
   local before = math.max(1, selection_range.start - surrounding_lines)
   local after = math.min(#all_lines, selection_range["end"] + surrounding_lines)
