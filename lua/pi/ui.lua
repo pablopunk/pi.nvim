@@ -14,7 +14,13 @@ local function has_rich_notify()
   if _G.__pi_force_notify_backend then
     return true
   end
-  return package.loaded.notify ~= nil or pcall(require, "notify")
+
+  if package.loaded.notify ~= nil or pcall(require, "notify") then
+    return true
+  end
+
+  local mini_notify = rawget(_G, "MiniNotify")
+  return type(mini_notify) == "table" and type(mini_notify.add) == "function"
 end
 
 local function is_session_window_valid(session)

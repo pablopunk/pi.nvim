@@ -143,7 +143,7 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 ## Behavior
 
 - Runs asynchronously and keeps editing nonblocking.
-- Uses `nvim-notify` for status updates when available; otherwise falls back to a small floating status window.
+- Uses `nvim-notify` or `mini.notify` for status updates when available; otherwise falls back to a small floating status window.
 - Reloads changed loaded buffers on success so pi's on-disk edits are reflected in Neovim.
 - Treats sent buffer/selection context as newer than disk, so unsaved Neovim changes are the source of truth for the agent.
 - Optionally includes Neovim diagnostics from LSPs/linters via `vim.diagnostic`.
