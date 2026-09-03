@@ -85,7 +85,7 @@ require("pi").setup({
 | `provider` | `nil` | pi provider to use. If omitted, pi uses its own default configuration. |
 | `model` | `nil` | Model name to use. If omitted, pi uses its own default configuration. |
 | `thinking` | `"off"` | Sets pi's thinking level (`--thinking`). Supported values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`. |
-| `tools` | `nil` | Array of tool names to enable (`read,`edit` and `write` are always enabled). If omitted, pi uses its own default configuration. |
+| `tools` | `nil` | Array of tool names to enable (`read`,`edit` and `write` are always enabled). If omitted, pi uses its own default configuration. |
 | `system_prompt` | `nil` | Passes a custom system prompt to pi (`--system-prompt`). Use with care, since this overrides pi's generated baseline instructions. |
 | `append_system_prompt` | `nil` | Appends text to the system prompt (`--append-system-prompt`). pi.nvim always appends its non-interactive execution instruction, and this option is concatenated after it. |
 | `context.max_bytes` | `24000` | Maximum size in bytes for sent context before trimming. |
