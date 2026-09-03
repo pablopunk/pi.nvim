@@ -15,6 +15,7 @@ M.defaults = {
   provider = nil,
   model = nil,
   thinking = "off",
+  tools = nil,
   system_prompt = nil,
   append_system_prompt = nil,
   context = {
@@ -104,6 +105,16 @@ function M.validate(opts)
     end
     if not VALID_THINKING_LEVELS[opts.thinking] then
       error("pi.nvim: thinking must be one of: off, minimal, low, medium, high, xhigh")
+    end
+  end
+  if opts.tools ~= nil then
+    if type(opts.tools) ~= "table" then
+      error("pi.nvim: tools must be a table")
+    end
+    for _, value in ipairs(opts.tools) do
+      if type(value) ~= "string" then
+        error("pi.nvim: tools must be a table of strings")
+      end
     end
   end
   if opts.system_prompt ~= nil and type(opts.system_prompt) ~= "string" then

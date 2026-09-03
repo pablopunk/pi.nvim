@@ -603,6 +603,32 @@ local function test_append_system_prompt_is_concatenated()
   MiniTest.expect.no_equality(cmd[append_idx + 1]:match("Always run tests"), nil)
 end
 
+local function test_tools_configs()
+  local configs = {
+    { setup = 'require("pi").setup({ tools = {} })', expected = "read,edit,write" },
+    { setup = 'require("pi").setup({ tools = nil })', expected = nil },
+    { setup = 'require("pi").setup({ tools = { "edit" } })', expected = "read,edit,write" },
+    { setup = 'require("pi").setup({ tools = { "bash" } })', expected = "read,edit,write,bash" },
+    { setup = 'require("pi").setup({ tools = { "custom" } })', expected = "read,edit,write,custom" },
+  }
+
+  for _, config in ipairs(configs) do
+    setup_test_env(config.setup)
+    setup_buffer({ "code" }, "/test/file.lua")
+
+    local system = run_pi_ask("test")
+    local cmd = system.get_cmd()
+    local tools_idx = has_arg(cmd, "--tools")
+
+    if config.expected then
+      MiniTest.expect.no_equality(tools_idx, nil)
+      MiniTest.expect.equality(cmd[tools_idx + 1], config.expected)
+    else
+      MiniTest.expect.equality(tools_idx, nil)
+    end
+  end
+end
+
 local function test_second_request_is_blocked_while_running()
   setup_test_env()
   setup_buffer({ "code" }, "/test/file.lua")
@@ -933,6 +959,7 @@ T["PiAsk"]["default thinking is off"] = test_default_thinking_is_off
 T["PiAsk"]["thinking option adds cli flag"] = test_thinking_option_adds_cli_flag
 T["PiAsk"]["invalid thinking option errors"] = test_invalid_thinking_option_errors
 T["PiAsk"]["append_system_prompt is concatenated with plugin prompt"] = test_append_system_prompt_is_concatenated
+T["PiAsk"]["configures tools"] = test_tools_configs
 
 T["PiAskSelection"] = MiniTest.new_set()
 T["PiAskSelection"]["uses nearby context"] = test_selection_uses_nearby_context
