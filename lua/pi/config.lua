@@ -32,6 +32,7 @@ M.defaults = {
   },
   skills = true,
   extensions = true,
+  session = false,
 }
 
 local values = vim.deepcopy(M.defaults)
@@ -99,6 +100,9 @@ function M.validate(opts)
   if opts.extensions ~= nil and type(opts.extensions) ~= "boolean" then
     error("pi.nvim: extensions must be a boolean")
   end
+  if opts.session ~= nil and type(opts.session) ~= "boolean" then
+    error("pi.nvim: session must be a boolean")
+  end
   if opts.thinking ~= nil then
     if type(opts.thinking) ~= "string" then
       error("pi.nvim: thinking must be a string")
@@ -133,6 +137,13 @@ function M.setup(opts)
   M.validate(opts)
   values = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
   return values
+end
+
+--- Flips whether pi persists sessions to disk.
+--- @return boolean session New value.
+function M.toggle_session()
+  values.session = not values.session
+  return values.session
 end
 
 --- Returns the currently active configuration.

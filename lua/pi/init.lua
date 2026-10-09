@@ -46,7 +46,10 @@ function M.get_cmd()
             binary = { vim.fn.expand(cfg.binary) }
         end
     end
-    local cmd = vim.list_extend(binary, { "--mode", "rpc", "--no-session" })
+    local cmd = vim.list_extend(binary, { "--mode", "rpc" })
+    if not cfg.session then
+        table.insert(cmd, "--no-session")
+    end
     if not cfg.extensions then
         table.insert(cmd, "--no-extensions")
     end
@@ -376,6 +379,12 @@ function M.cancel()
     last_session = active_session
     ui.close(active_session)
     active_session = nil
+end
+
+function M.toggle_session()
+    local enabled = config.toggle_session()
+    vim.notify("pi.nvim: session saving " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+    return enabled
 end
 
 function M.is_running()

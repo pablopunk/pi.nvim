@@ -548,6 +548,32 @@ local function test_skills_option_disables_skills()
   MiniTest.expect.no_equality(has_arg(cmd, "--no-skills"), nil)
 end
 
+local function test_session_option_enables_session_saving()
+  setup_test_env('require("pi").setup({ session = true })')
+  local cmd = child.lua_get([[require("pi").get_cmd()]])
+
+  MiniTest.expect.equality(has_arg(cmd, "--no-session"), nil)
+end
+
+local function test_invalid_session_option_errors()
+  setup_test_env()
+  local ok = child.lua_get([[pcall(require("pi").setup, { session = "yes" })]])
+
+  MiniTest.expect.equality(ok, false)
+end
+
+local function test_toggle_session_command_flips_flag()
+  setup_test_env()
+
+  child.cmd("PiToggleSession")
+  MiniTest.expect.equality(has_arg(child.lua_get([[require("pi").get_cmd()]]), "--no-session"), nil)
+  MiniTest.expect.no_equality(last_notification().msg:match("enabled"), nil)
+
+  child.cmd("PiToggleSession")
+  MiniTest.expect.no_equality(has_arg(child.lua_get([[require("pi").get_cmd()]]), "--no-session"), nil)
+  MiniTest.expect.no_equality(last_notification().msg:match("disabled"), nil)
+end
+
 local function test_extensions_option_disables_extensions()
   setup_test_env('require("pi").setup({ extensions = false })')
   setup_buffer({ "code" }, "/test/file.lua")
@@ -955,6 +981,9 @@ T["PiAsk"]["reloaded buffer can be written without changed-since-reading warning
 T["PiAsk"]["reloads all changed loaded buffers on success"] = test_success_reloads_all_changed_loaded_buffers
 T["PiAsk"]["skills option disables skills"] = test_skills_option_disables_skills
 T["PiAsk"]["extensions option disables extensions"] = test_extensions_option_disables_extensions
+T["PiAsk"]["session option enables session saving"] = test_session_option_enables_session_saving
+T["PiAsk"]["invalid session option errors"] = test_invalid_session_option_errors
+T["PiAsk"]["PiToggleSession flips session saving"] = test_toggle_session_command_flips_flag
 T["PiAsk"]["default thinking is off"] = test_default_thinking_is_off
 T["PiAsk"]["thinking option adds cli flag"] = test_thinking_option_adds_cli_flag
 T["PiAsk"]["invalid thinking option errors"] = test_invalid_thinking_option_errors
