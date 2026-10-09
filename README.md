@@ -76,6 +76,7 @@ require("pi").setup({
   },
   skills = true,
   extensions = true,
+  session = false,
 })
 ```
 
@@ -94,6 +95,7 @@ require("pi").setup({
 | `context.diagnostics.enabled` | `false` | Includes Neovim diagnostics in the sent context. `:PiAsk` sends all buffer diagnostics; `:PiAskSelection` sends only diagnostics overlapping the selected lines. |
 | `skills` | `true` | Whether pi discovers and loads skills. Set to `false` to pass `--no-skills`. |
 | `extensions` | `true` | Whether pi discovers and loads extensions. Set to `false` to pass `--no-extensions`. |
+| `session` | `false` | Whether pi saves each request as a session on disk. When `false`, pi.nvim passes `--no-session`. Saved sessions can be reopened from the CLI with `pi --resume`. Toggle at runtime with `:PiToggleSession`. |
 
 Use `pi --list-models` to see available models.
 
@@ -140,6 +142,7 @@ vim.keymap.set("v", "<leader>ai", ":PiAskSelection<CR>", { desc = "Ask pi (selec
 | `:PiAsk` | Normal | Prompt for input, sends it + current buffer as context |
 | `:PiAskSelection` | Visual | Same as :PiAsk but also sends selected lines as context |
 | `:PiCancel` | Normal | Cancel the active pi request immediately |
+| `:PiToggleSession` | Normal | Toggle whether pi saves sessions to disk (see `session` config) |
 | `:PiLog` | Normal | Open the session log in a new split |
 
 ## Behavior
